@@ -1,18 +1,25 @@
-module RegisterFile(
-    input         clk,
-    input         we,
-    input  [4:0]  rs1,
-    input  [4:0]  rs2,
-    input  [4:0]  rd,
-    input  [31:0] wdata,
-    output [31:0] rdata1,
-    output [31:0] rdata2
+module RegisterFile (
+    input logic clk,
+    input logic RegWrite,
+    input logic [4:0] rs1,
+    input logic [4:0] rs2,
+    input logic [4:0] rd,
+    input logic [31:0] WriteData,
+    output logic [31:0] ReadData1,
+    output logic [31:0] ReadData2,
+    input logic rst_n
 );
-    reg [31:0] regfile [0:31];
-    always @(posedge clk) begin
-        if (we && rd != 0)
-            regfile[rd] <= wdata;
+    logic [31:0] registers [0:31];
+
+    assign ReadData1 = (rs1 != 0) ? registers[rs1] : 32'b0;
+    assign ReadData2 = (rs2 != 0) ? registers[rs2] : 32'b0;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            for (int i = 0; i < 32; i = i + 1)
+                registers[i] <= 32'b0;
+        end else if (RegWrite && rd != 0) begin
+            registers[rd] <= WriteData;
+        end
     end
-    assign rdata1 = (rs1 == 0) ? 0 : regfile[rs1];
-    assign rdata2 = (rs2 == 0) ? 0 : regfile[rs2];
 endmodule
