@@ -71,7 +71,7 @@ module RISCV_Single_Cycle (
         .ALUOp(alu_op)
     );
 
-    assign alu_in_2 = /* chọn reg_rdata2 hoặc imm_ext tùy ALUSrc */;
+    assign alu_in_2 = alu_src ? imm_ext : reg_rdata2;
     ALU ALU_inst (
         .A(reg_rdata1),
         .B(alu_in_2),
@@ -94,7 +94,7 @@ module RISCV_Single_Cycle (
     );
 
     // PC logic
-    assign pc_next = /* cập nhật PC theo logic jump/branch */;
+    assign pc_next = pc + 4;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n)
             pc <= 0;
