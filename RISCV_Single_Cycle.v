@@ -1,109 +1,128 @@
-module RISCV_Single_Cycle (
-    input clk,
-    input rst_n,
-    output [31:0] Instruction_out_top
+module RISCV_Single_Cycle(
+    input logic clk,
+    input logic rst_n,
+    output logic [31:0] PC_out_top,
+    output logic [31:0] Instruction_out_top
 );
 
     // Program Counter
-    reg [31:0] pc;
-    wire [31:0] pc_next;
+    logic [31:0] PC_next;
 
-    // Instruction Memory
-    wire [31:0] instruction;
-    IMEM IMEM_inst (
-        .addr(pc),
-        .inst(instruction)
-    );
+    // Wires for instruction fields
+    logic [4:0] rs1, rs2, rd;
+    logic [2:0] funct3;
+    logic [6:0] opcode, funct7;
 
-    // Instruction output for testbench
-    assign Instruction_out_top = instruction;
+    // Immediate value
+    logic [31:0] Imm;
+
+    // Register file wires
+    logic [31:0] ReadData1, ReadData2, WriteData;
+
+    // ALU
+    logic [31:0] ALU_in2, ALU_result;
+    logic ALUZero;
 
     // Data Memory
-    wire [31:0] alu_result;
-    wire [31:0] write_data;
-    wire [31:0] read_data;
-    wire mem_write;
+    logic [31:0] MemReadData;
 
-    DMEM DMEM_inst (
-        .clk(clk),
-        .addr(alu_result),
-        .wdata(write_data),
-        .we(mem_write),
-        .rdata(read_data)
+    // Control signals
+    logic [1:0] ALUSrc;
+    logic [3:0] ALUCtrl;
+    logic Branch, MemRead, MemWrite, MemToReg;
+    logic RegWrite, PCSel;
+
+    // PC update
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n)
+            PC_out_top <= 32'b0;
+        else
+            PC_out_top <= PC_next;
+    end
+
+    // Instruction Memory (IMEM)
+    IMEM IMEM_inst(
+        .addr(PC_out_top),
+        .Instruction(Instruction_out_top)
     );
 
-    // ImmGen
-    wire [31:0] imm_ext;
-    Imm_Gen Imm_Gen_inst (
-        .instr(instruction),
-        .imm_out(imm_ext)
+    // Instruction field decoding
+    assign opcode = Instruction_out_top[6:0];
+    assign rd     = Instruction_out_top[11:7];
+    assign funct3 = Instruction_out_top[14:12];
+    assign rs1    = Instruction_out_top[19:15];
+    assign rs2    = Instruction_out_top[24:20];
+    assign funct7 = Instruction_out_top[31:25];
+
+    // Immediate generator
+    Imm_Gen imm_gen(
+        .inst(Instruction_out_top),
+        .imm_out(Imm)
     );
 
-    // Register File
-    wire reg_write;
-    wire [4:0] rs1, rs2, rd;
-    wire [31:0] reg_rdata1, reg_rdata2;
-
-    assign rs1 = instruction[19:15];
-    assign rs2 = instruction[24:20];
-    assign rd  = instruction[11:7];
-
-    RegisterFile RegisterFile_inst (
+    // Register File (instance name must be Reg_inst for tb)
+    RegisterFile Reg_inst(
         .clk(clk),
-        .we(reg_write),
+        .rst_n(rst_n),
+        .RegWrite(RegWrite),
         .rs1(rs1),
         .rs2(rs2),
         .rd(rd),
-        .wdata( /* Dữ liệu ghi vào thanh ghi, tự logic */ ),
-        .rdata1(reg_rdata1),
-        .rdata2(reg_rdata2)
+        .WriteData(WriteData),
+        .ReadData1(ReadData1),
+        .ReadData2(ReadData2)
     );
 
-    // ALU control & ALU
-    wire [3:0] alu_op;
-    wire [31:0] alu_in_2;
-    wire alu_zero;
+    // ALU input selection
+    assign ALU_in2 = (ALUSrc[0]) ? Imm : ReadData2;
 
-    ALU_decoder ALU_decoder_inst (
-        .funct7(instruction[31:25]),
-        .funct3(instruction[14:12]),
-        .ALUSrc( /* Kết nối theo thiết kế */ ),
-        .ALUOp(alu_op)
+    // ALU
+    ALU alu(
+        .A(ReadData1),
+        .B(ALU_in2),
+        .ALUOp(ALUCtrl),
+        .Result(ALU_result),
+        .Zero(ALUZero)
     );
 
-    assign alu_in_2 = alu_src ? imm_ext : reg_rdata2;
-    ALU ALU_inst (
-        .A(reg_rdata1),
-        .B(alu_in_2),
-        .ALUOp(alu_op),
-        .Result(alu_result),
-        .Zero(alu_zero)
+    // Data Memory (DMEM)
+    DMEM DMEM_inst(
+        .clk(clk),
+        .rst_n(rst_n),
+        .MemRead(MemRead),
+        .MemWrite(MemWrite),
+        .addr(ALU_result),
+        .WriteData(ReadData2),
+        .ReadData(MemReadData)
     );
+
+    // Write-back mux
+    assign WriteData = (MemToReg) ? MemReadData : ALU_result;
 
     // Control unit
-    wire mem_read, alu_src, branch;
-    wire [1:0] result_src;
-    control_unit control_unit_inst (
-        .opcode(instruction[6:0]),
-        .RegWrite(reg_write),
-        .MemWrite(mem_write),
-        .MemRead(mem_read),
-        .Branch(branch),
-        .ALUSrc(alu_src),
-        .ResultSrc(result_src)
+    control_unit ctrl(
+        .opcode(opcode),
+        .funct3(funct3),
+        .funct7(funct7),
+        .ALUSrc(ALUSrc),
+        .ALUOp(ALUCtrl),
+        .Branch(Branch),
+        .MemRead(MemRead),
+        .MemWrite(MemWrite),
+        .MemToReg(MemToReg),
+        .RegWrite(RegWrite)
     );
 
-    // PC logic
-    assign pc_next = pc + 4;
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
-            pc <= 0;
-        else
-            pc <= pc_next;
-    end
+    // Branch comparator
+    Branch_Comp comp(
+        .A(ReadData1),
+        .B(ReadData2),
+        .Branch(Branch),
+        .funct3(funct3),
+        .BrTaken(PCSel)
+    );
 
-    // *** CHÚ Ý ***
-    // Các tín hiệu như: write_data, alu_in_2, wdata, pc_next cần bạn tự hoàn chỉnh logic theo pipeline của bạn
-    // Đây là khung chuẩn testbench, bạn chỉ cần điền đúng "đường đi" tín hiệu và bổ sung logic còn thiếu
+    // Next PC logic
+    assign PC_next = (PCSel) ? PC_out_top + Imm : PC_out_top + 4;
 
 endmodule
