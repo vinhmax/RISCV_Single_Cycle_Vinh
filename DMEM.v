@@ -5,10 +5,11 @@ module DMEM(
     input         we,
     output [31:0] rdata
 );
-    reg [31:0] mem [0:255];
+    reg [31:0] memory [0:255];  // <-- Tên phải là memory
+
     always @(posedge clk) begin
         if (we)
-            mem[addr[9:2]] <= wdata;
+            memory[addr[9:2]] <= wdata;
     end
-    assign rdata = mem[addr[9:2]];
+    assign rdata = memory[addr[9:2]];
 endmodule
