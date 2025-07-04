@@ -1,29 +1,22 @@
-module DMEM (
-    input logic clk,
-    input logic rst_n,
-    input logic MemRead,
-    input logic MemWrite,
-    input logic [31:0] addr,
-    input logic [31:0] WriteData,
-    output logic [31:0] ReadData
+module Branch_Comp (
+    input  logic [31:0] A,
+    input  logic [31:0] B,
+    input  logic Branch,
+    input  logic [2:0] funct3,
+    output logic BrTaken
 );
-    logic [31:0] memory [0:255];
-
-    assign ReadData = (MemRead) ? memory[addr[9:2]] : 32'b0;
-
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            for (int i = 0; i < 256; i = i + 1)
-                memory[i] <= 32'b0;
-        end else if (MemWrite) begin
-            memory[addr[9:2]] <= WriteData;
+    always_comb begin
+        BrTaken = 0;
+        if (Branch) begin
+            case (funct3)
+                3'b000: BrTaken = (A == B);         // beq
+                3'b001: BrTaken = (A != B);         // bne
+                3'b100: BrTaken = ($signed(A) < $signed(B)); // blt
+                3'b101: BrTaken = ($signed(A) >= $signed(B)); // bge
+                3'b110: BrTaken = (A < B);          // bltu
+                3'b111: BrTaken = (A >= B);         // bgeu
+                default: BrTaken = 0;
+            endcase
         end
-    end
-
-    initial begin
-        if ($fopen("./mem/dmem_init2.hex", "r"))
-            $readmemh("./mem/dmem_init2.hex", memory);
-        else if ($fopen("./mem/dmem_init.hex", "r"))
-            $readmemh("./mem/dmem_init.hex", memory);
     end
 endmodule
