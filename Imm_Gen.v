@@ -1,18 +1,31 @@
-module Imm_Gen(
-    input  [31:0] instr,
-    output reg [31:0] imm_out
+module Imm_Gen (
+    input  logic [31:0] inst,
+    output logic [31:0] imm_out
 );
+    wire [6:0] opcode = inst[6:0];
+
     always @(*) begin
-        case(instr[6:0])
-            7'b0010011, // I-type
-            7'b0000011,
-            7'b1100111: imm_out = {{20{instr[31]}}, instr[31:20]};
-            7'b0100011: imm_out = {{20{instr[31]}}, instr[31:25], instr[11:7]}; // S-type
-            7'b1100011: imm_out = {{19{instr[31]}}, instr[31], instr[7], instr[30:25], instr[11:8], 1'b0}; // B-type
-            7'b1101111: imm_out = {{11{instr[31]}}, instr[31], instr[19:12], instr[20], instr[30:21], 1'b0}; // J-type
-            7'b0110111,
-            7'b0010111: imm_out = {instr[31:12], 12'b0}; // U-type
-            default: imm_out = 0;
+        case (opcode)
+            7'b0000011, // I-type
+            7'b0010011,
+            7'b1100111:
+                imm_out = {{20{inst[31]}}, inst[31:20]};
+
+            7'b0100011: // S-type
+                imm_out = {{20{inst[31]}}, inst[31:25], inst[11:7]};
+
+            7'b1100011: // B-type
+                imm_out = {{19{inst[31]}}, inst[31], inst[7], inst[30:25], inst[11:8], 1'b0};
+
+            7'b0010111, // auipc
+            7'b0110111: // lui
+                imm_out = {inst[31:12], 12'b0};
+
+            7'b1101111: // jal
+                imm_out = {{11{inst[31]}}, inst[31], inst[19:12], inst[20], inst[30:21], 1'b0};
+
+            default:
+                imm_out = 32'b0;
         endcase
     end
 endmodule
