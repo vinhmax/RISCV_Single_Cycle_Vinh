@@ -1,18 +1,22 @@
-module Branch_Comp(
-    input  [31:0] A,
-    input  [31:0] B,
-    input  [2:0]  funct3,
-    output reg    branch
+module Branch_Comp (
+    input  logic [31:0] A,
+    input  logic [31:0] B,
+    input  logic Branch,
+    input  logic [2:0] funct3,
+    output logic BrTaken
 );
-    always @(*) begin
-        case(funct3)
-            3'b000: branch = (A == B);   // BEQ
-            3'b001: branch = (A != B);   // BNE
-            3'b100: branch = ($signed(A) < $signed(B)); // BLT
-            3'b101: branch = ($signed(A) >= $signed(B));// BGE
-            3'b110: branch = (A < B);    // BLTU
-            3'b111: branch = (A >= B);   // BGEU
-            default: branch = 0;
-        endcase
+    always_comb begin
+        BrTaken = 0;
+        if (Branch) begin
+            case (funct3)
+                3'b000: BrTaken = (A == B);         // beq
+                3'b001: BrTaken = (A != B);         // bne
+                3'b100: BrTaken = ($signed(A) < $signed(B)); // blt
+                3'b101: BrTaken = ($signed(A) >= $signed(B)); // bge
+                3'b110: BrTaken = (A < B);          // bltu
+                3'b111: BrTaken = (A >= B);         // bgeu
+                default: BrTaken = 0;
+            endcase
+        end
     end
 endmodule
